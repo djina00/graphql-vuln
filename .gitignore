@@ -1,0 +1,8 @@
+backend/vendor/
+backend/config.php
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+.env
