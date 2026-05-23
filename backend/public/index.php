@@ -4,6 +4,9 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Auth;
+use App\GraphQL\Schema;
+use GraphQL\Error\DebugFlag;
+use GraphQL\GraphQL;
 
 $config = require __DIR__ . '/../config.php';
 
@@ -72,6 +75,30 @@ try {
 
     if ($path === '/auth/me' && $method === 'GET') {
         echo json_encode(['user' => Auth::currentUser()]);
+        exit;
+    }
+
+    if ($path === '/graphql' && $method === 'POST') {
+        $in = read_json_body();
+        $query = (string)($in['query'] ?? '');
+        $variables = $in['variables'] ?? null;
+        $operationName = $in['operationName'] ?? null;
+
+        // VULN: info-leak — introspection enabled (no DisableIntrospection rule)
+        // VULN: query-depth — no QueryDepth/QueryComplexity rule registered
+        // VULN: alias-overload — no MaxAliases rule registered
+        $result = GraphQL::executeQuery(
+            Schema::build(),
+            $query,
+            null,
+            ['userId' => Auth::currentUserId()],
+            is_array($variables) ? $variables : null,
+            is_string($operationName) ? $operationName : null
+        );
+
+        // VULN: info-leak — debug flags leak stack traces and field suggestions
+        $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
+        echo json_encode($result->toArray($debug));
         exit;
     }
 
