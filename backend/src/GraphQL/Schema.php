@@ -19,6 +19,81 @@ class Schema
     {
         return new GqlSchema([
             'query' => self::queryType(),
+            'mutation' => self::mutationType(),
+        ]);
+    }
+
+    private static function mutationType(): ObjectType
+    {
+        return new ObjectType([
+            'name' => 'Mutation',
+            'fields' => [
+                'createPost' => [
+                    'type' => self::post(),
+                    'args' => [
+                        'title' => Type::nonNull(Type::string()),
+                        'body' => Type::nonNull(Type::string()),
+                        'status' => Type::string(),
+                    ],
+                    'resolve' => function ($root, array $args, $context) {
+                        $userId = $context['userId'] ?? null;
+                        if ($userId === null) {
+                            throw new \RuntimeException('Login required.');
+                        }
+                        $status = ($args['status'] ?? '') === 'draft' ? 'draft' : 'published';
+                        $pdo = Db::pdo();
+                        $stmt = $pdo->prepare(
+                            "INSERT INTO posts (author_id, title, body, status) VALUES (?, ?, ?, ?)"
+                        );
+                        $stmt->execute([$userId, $args['title'], $args['body'], $status]);
+                        $stmt = $pdo->prepare("SELECT * FROM posts WHERE id = ?");
+                        $stmt->execute([(int) $pdo->lastInsertId()]);
+                        return $stmt->fetch();
+                    },
+                ],
+                'createComment' => [
+                    'type' => self::comment(),
+                    'args' => [
+                        'postId' => Type::nonNull(Type::int()),
+                        'body' => Type::nonNull(Type::string()),
+                    ],
+                    'resolve' => function ($root, array $args, $context) {
+                        $userId = $context['userId'] ?? null;
+                        if ($userId === null) {
+                            throw new \RuntimeException('Login required.');
+                        }
+                        $pdo = Db::pdo();
+                        $stmt = $pdo->prepare(
+                            "INSERT INTO comments (post_id, author_id, body) VALUES (?, ?, ?)"
+                        );
+                        $stmt->execute([$args['postId'], $userId, $args['body']]);
+                        $stmt = $pdo->prepare("SELECT * FROM comments WHERE id = ?");
+                        $stmt->execute([(int) $pdo->lastInsertId()]);
+                        return $stmt->fetch();
+                    },
+                ],
+                'sendMessage' => [
+                    'type' => self::message(),
+                    'args' => [
+                        'recipientId' => Type::nonNull(Type::int()),
+                        'body' => Type::nonNull(Type::string()),
+                    ],
+                    'resolve' => function ($root, array $args, $context) {
+                        $userId = $context['userId'] ?? null;
+                        if ($userId === null) {
+                            throw new \RuntimeException('Login required.');
+                        }
+                        $pdo = Db::pdo();
+                        $stmt = $pdo->prepare(
+                            "INSERT INTO messages (sender_id, recipient_id, body) VALUES (?, ?, ?)"
+                        );
+                        $stmt->execute([$userId, $args['recipientId'], $args['body']]);
+                        $stmt = $pdo->prepare("SELECT * FROM messages WHERE id = ?");
+                        $stmt->execute([(int) $pdo->lastInsertId()]);
+                        return $stmt->fetch();
+                    },
+                ],
+            ],
         ]);
     }
 

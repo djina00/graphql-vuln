@@ -79,7 +79,38 @@ try {
     }
 
     if ($path === '/graphql' && $method === 'POST') {
-        $in = read_json_body();
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+
+        // VULN: csrf — accepting form-urlencoded bodies lets a cross-origin
+        // HTML form trigger mutations using the victim's session cookie
+        // (form POSTs are "simple" CORS requests, no preflight)
+        if (str_starts_with($contentType, 'application/x-www-form-urlencoded')) {
+            $in = $_POST;
+        } else {
+            $in = read_json_body();
+        }
+
+        $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
+
+        // VULN: batching — a JSON array body runs many operations in one
+        // request, bypassing any per-request rate limit
+        if (is_array($in) && array_is_list($in)) {
+            $results = [];
+            foreach ($in as $op) {
+                $r = GraphQL::executeQuery(
+                    Schema::build(),
+                    (string)($op['query'] ?? ''),
+                    null,
+                    ['userId' => Auth::currentUserId()],
+                    is_array($op['variables'] ?? null) ? $op['variables'] : null,
+                    is_string($op['operationName'] ?? null) ? $op['operationName'] : null
+                );
+                $results[] = $r->toArray($debug);
+            }
+            echo json_encode($results);
+            exit;
+        }
+
         $query = (string)($in['query'] ?? '');
         $variables = $in['variables'] ?? null;
         $operationName = $in['operationName'] ?? null;
@@ -97,7 +128,6 @@ try {
         );
 
         // VULN: info-leak — debug flags leak stack traces and field suggestions
-        $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
         echo json_encode($result->toArray($debug));
         exit;
     }
