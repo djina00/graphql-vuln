@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GQL Blog</title>
+    <title>Post - GQL Blog</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -21,14 +21,21 @@
     <div class="row justify-content-center">
         <div class="col-md-8">
 
-            <form id="search-form" class="d-flex mb-4">
-                <input id="search-input" type="text" class="form-control me-2"
-                       placeholder="Search posts...">
-                <button class="btn btn-outline-primary" type="submit">Search</button>
-                <button id="clear-search" type="button" class="btn btn-link">Clear</button>
-            </form>
+            <a href="index.html" class="text-muted small">&larr; Back to feed</a>
 
-            <div id="feed"></div>
+            <div id="post" class="mt-3"></div>
+
+            <h5 class="mt-5 mb-3">Comments</h5>
+            <div id="comments"></div>
+
+            <form id="comment-form" class="mt-4">
+                <div class="mb-2">
+                    <textarea id="comment-body" class="form-control" rows="2"
+                              placeholder="Write a comment..." required></textarea>
+                </div>
+                <div id="comment-error" class="text-danger small mb-2"></div>
+                <button type="submit" class="btn btn-primary btn-sm">Post comment</button>
+            </form>
 
         </div>
     </div>
@@ -36,6 +43,6 @@
 
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
-<script src="js/home.js"></script>
+<script src="js/post.js"></script>
 </body>
 </html>
