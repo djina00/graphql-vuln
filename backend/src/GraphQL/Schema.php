@@ -169,15 +169,23 @@ class Schema
                             'resolve' => fn($u) => $u['display_name'],
                         ],
                         'bio' => Type::string(),
-                        // VULN: idor — email is returned to anyone who knows the user id
+                        // IDOR fix: email only visible to the user themselves
                         'email' => [
                             'type' => Type::string(),
-                            'resolve' => fn($u) => $u['email'],
+                            'resolve' => function ($user, $args, $context) {
+                                if (($context['userId'] ?? null) !== (int) $user['id']) {
+                                    return null;
+                                }
+                                return $user['email'];
+                            },
                         ],
-                        // VULN: idor — drafts are private but returned to anyone
+                        // IDOR fix: drafts only visible to the author
                         'drafts' => [
                             'type' => Type::nonNull(Type::listOf(Type::nonNull(self::post()))),
-                            'resolve' => function ($user) {
+                            'resolve' => function ($user, $args, $context) {
+                                if (($context['userId'] ?? null) !== (int) $user['id']) {
+                                    return [];
+                                }
                                 $stmt = Db::pdo()->prepare(
                                     "SELECT * FROM posts WHERE author_id = ? AND status = 'draft' ORDER BY created_at DESC"
                                 );
@@ -185,11 +193,13 @@ class Schema
                                 return $stmt->fetchAll();
                             },
                         ],
-                        // VULN: idor — DMs to/from this user are returned without
-                        // checking that the requester is involved in the conversation
+                        // IDOR fix: only the user can read their own messages
                         'messages' => [
                             'type' => Type::nonNull(Type::listOf(Type::nonNull(self::message()))),
-                            'resolve' => function ($user) {
+                            'resolve' => function ($user, $args, $context) {
+                                if (($context['userId'] ?? null) !== (int) $user['id']) {
+                                    return [];
+                                }
                                 $stmt = Db::pdo()->prepare(
                                     "SELECT * FROM messages WHERE sender_id = ? OR recipient_id = ? ORDER BY created_at DESC"
                                 );
