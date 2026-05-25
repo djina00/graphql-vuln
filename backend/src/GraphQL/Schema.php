@@ -141,12 +141,15 @@ class Schema
                         'keyword' => Type::nonNull(Type::string()),
                     ],
                     'resolve' => function ($root, array $args) {
-                        $kw = $args['keyword'];
-                        // VULN: sqli — keyword is concatenated straight into the SQL
-                        $sql = "SELECT * FROM posts WHERE status = 'published' "
-                             . "AND (title LIKE '%$kw%' OR body LIKE '%$kw%') "
-                             . "ORDER BY created_at DESC";
-                        return Db::pdo()->query($sql)->fetchAll();
+                        // SQLi fix: bind keyword as a parameter instead of concatenating
+                        $like = '%' . $args['keyword'] . '%';
+                        $stmt = Db::pdo()->prepare(
+                            "SELECT * FROM posts WHERE status = 'published' "
+                            . "AND (title LIKE ? OR body LIKE ?) "
+                            . "ORDER BY created_at DESC"
+                        );
+                        $stmt->execute([$like, $like]);
+                        return $stmt->fetchAll();
                     },
                 ],
             ],
