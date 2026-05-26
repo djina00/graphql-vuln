@@ -7,8 +7,15 @@ use App\Auth;
 use App\GraphQL\Schema;
 use GraphQL\Error\DebugFlag;
 use GraphQL\GraphQL;
+use GraphQL\Validator\DocumentValidator;
+use GraphQL\Validator\Rules\QueryComplexity;
+use GraphQL\Validator\Rules\QueryDepth;
 
 $config = require __DIR__ . '/../config.php';
+
+// depth/complexity fix: cap query nesting and total field work per request
+DocumentValidator::addRule(new QueryDepth(7));
+DocumentValidator::addRule(new QueryComplexity(150));
 
 // CORS for the dev frontend running on a different port.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -134,7 +141,6 @@ try {
         $operationName = $in['operationName'] ?? null;
 
         // VULN: info-leak — introspection enabled (no DisableIntrospection rule)
-        // VULN: query-depth — no QueryDepth/QueryComplexity rule registered
         // VULN: alias-overload — no MaxAliases rule registered
         $result = GraphQL::executeQuery(
             Schema::build(),
