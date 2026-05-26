@@ -74,21 +74,39 @@ try {
     }
 
     if ($path === '/auth/me' && $method === 'GET') {
-        echo json_encode(['user' => Auth::currentUser()]);
+        $user = Auth::currentUser();
+        echo json_encode([
+            'user'      => $user,
+            'csrfToken' => $user ? Auth::ensureCsrfToken() : null,
+        ]);
         exit;
     }
 
     if ($path === '/graphql' && $method === 'POST') {
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 
-        // VULN: csrf — accepting form-urlencoded bodies lets a cross-origin
-        // HTML form trigger mutations using the victim's session cookie
-        // (form POSTs are "simple" CORS requests, no preflight)
-        if (str_starts_with($contentType, 'application/x-www-form-urlencoded')) {
-            $in = $_POST;
-        } else {
-            $in = read_json_body();
+        // CSRF fix: only accept JSON (form-urlencoded POSTs are "simple" CORS
+        // requests that a cross-origin page could send with the user's cookie)
+        if (!str_starts_with($contentType, 'application/json')) {
+            http_response_code(415);
+            echo json_encode(['error' => 'Content-Type must be application/json']);
+            exit;
         }
+
+        // CSRF fix: authenticated requests must carry the per-session token
+        // in an X-CSRF-Token header (custom headers require CORS preflight,
+        // which a cross-origin attacker page cannot pass)
+        if (Auth::currentUserId() !== null) {
+            $sent    = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            $session = $_SESSION['csrf_token'] ?? '';
+            if ($sent === '' || $session === '' || !hash_equals($session, $sent)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Invalid CSRF token']);
+                exit;
+            }
+        }
+
+        $in = read_json_body();
 
         $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
 

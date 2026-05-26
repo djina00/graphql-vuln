@@ -33,7 +33,10 @@ class Auth
         $stmt->execute([$email, $hash, $displayName]);
 
         $_SESSION['user_id'] = (int) $pdo->lastInsertId();
-        return ['user' => self::currentUser()];
+        return [
+            'user'      => self::currentUser(),
+            'csrfToken' => self::ensureCsrfToken(),
+        ];
     }
 
     public static function login(string $email, string $password): array
@@ -50,11 +53,23 @@ class Auth
         }
 
         $_SESSION['user_id'] = (int) $user['id'];
-        return ['user' => [
-            'id'          => (int) $user['id'],
-            'email'       => $user['email'],
-            'displayName' => $user['display_name'],
-        ]];
+        return [
+            'user' => [
+                'id'          => (int) $user['id'],
+                'email'       => $user['email'],
+                'displayName' => $user['display_name'],
+            ],
+            'csrfToken' => self::ensureCsrfToken(),
+        ];
+    }
+
+    // CSRF fix: issue and reuse a per-session token
+    public static function ensureCsrfToken(): string
+    {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
     }
 
     public static function logout(): void

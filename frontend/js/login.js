@@ -13,5 +13,6 @@ form.addEventListener('submit', async function (e) {
         errorBox.textContent = (data && data.error) || 'Login failed.';
         return;
     }
+    setCsrfToken(data.csrfToken);
     window.location.href = 'index.html';
 });

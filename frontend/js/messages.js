@@ -1,13 +1,3 @@
-async function graphql(query, variables) {
-    const res = await fetch(BACKEND_URL + '/graphql', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, variables: variables || null })
-    });
-    return res.json();
-}
-
 function escapeHtml(s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -23,6 +13,7 @@ async function loadCurrentUser() {
         return null;
     }
     document.getElementById('welcome-name').textContent = data.user.displayName;
+    setCsrfToken(data.csrfToken);
     myId = data.user.id;
     return myId;
 }
@@ -56,7 +47,7 @@ function renderMessages(messages) {
 }
 
 async function loadMessages() {
-    const result = await graphql(
+    const result = await graphqlPost(
         'query($id: Int!) { user(id: $id) { messages { id body createdAt ' +
         'sender { id displayName } recipient { id displayName } } } }',
         { id: myId }
@@ -74,7 +65,7 @@ document.getElementById('send-form').addEventListener('submit', async function (
     const body = document.getElementById('message-body').value.trim();
     if (!recipientId || body === '') return;
 
-    const result = await graphql(
+    const result = await graphqlPost(
         'mutation($r: Int!, $b: String!) { sendMessage(recipientId: $r, body: $b) { id } }',
         { r: recipientId, b: body }
     );

@@ -1,13 +1,3 @@
-async function graphql(query, variables) {
-    const res = await fetch(BACKEND_URL + '/graphql', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, variables: variables || null })
-    });
-    return res.json();
-}
-
 function escapeHtml(s) {
     return String(s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -23,6 +13,7 @@ async function loadCurrentUser() {
         return;
     }
     document.getElementById('welcome-name').textContent = data.user.displayName;
+    setCsrfToken(data.csrfToken);
 }
 
 function renderPost(p) {
@@ -60,7 +51,7 @@ async function loadPost() {
     const q = '{ post(id: ' + postId + ') { id title body createdAt ' +
               'author { displayName } ' +
               'comments { id body createdAt author { displayName } } } }';
-    const result = await graphql(q);
+    const result = await graphqlPost(q);
     const p = result.data && result.data.post;
     if (!p) {
         document.getElementById('post').innerHTML =
@@ -78,7 +69,7 @@ document.getElementById('comment-form').addEventListener('submit', async functio
     const body = document.getElementById('comment-body').value.trim();
     if (body === '') return;
 
-    const result = await graphql(
+    const result = await graphqlPost(
         'mutation($pid: Int!, $b: String!) { createComment(postId: $pid, body: $b) { id } }',
         { pid: postId, b: body }
     );
@@ -95,10 +86,13 @@ document.getElementById('logout-btn').addEventListener('click', async function (
     window.location.href = 'login.html';
 });
 
-if (!postId) {
-    document.getElementById('post').innerHTML =
-        '<p class="text-danger">Missing post id.</p>';
-} else {
-    loadCurrentUser();
+async function init() {
+    if (!postId) {
+        document.getElementById('post').innerHTML =
+            '<p class="text-danger">Missing post id.</p>';
+        return;
+    }
+    await loadCurrentUser();
     loadPost();
 }
+init();

@@ -14,5 +14,6 @@ form.addEventListener('submit', async function (e) {
         errorBox.textContent = (data && data.error) || 'Registration failed.';
         return;
     }
+    setCsrfToken(data.csrfToken);
     window.location.href = 'index.html';
 });

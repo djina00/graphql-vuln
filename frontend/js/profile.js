@@ -1,13 +1,3 @@
-async function graphql(query, variables) {
-    const res = await fetch(BACKEND_URL + '/graphql', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, variables: variables || null })
-    });
-    return res.json();
-}
-
 function escapeHtml(s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -23,6 +13,7 @@ async function loadCurrentUser() {
         return null;
     }
     document.getElementById('welcome-name').textContent = data.user.displayName;
+    setCsrfToken(data.csrfToken);
     currentUserId = data.user.id;
     return data.user.id;
 }
@@ -67,7 +58,7 @@ function renderDrafts(drafts) {
 }
 
 async function loadProfile(id) {
-    const result = await graphql(
+    const result = await graphqlPost(
         'query($id: Int!) { user(id: $id) { id displayName email bio drafts { id title body createdAt } } }',
         { id: id }
     );

@@ -1,13 +1,3 @@
-async function graphql(query, variables) {
-    const res = await fetch(BACKEND_URL + '/graphql', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, variables: variables || null })
-    });
-    return res.json();
-}
-
 async function loadCurrentUser() {
     const { data } = await apiGet('/auth/me');
     if (!data || !data.user) {
@@ -15,6 +5,7 @@ async function loadCurrentUser() {
         return;
     }
     document.getElementById('welcome-name').textContent = data.user.displayName;
+    setCsrfToken(data.csrfToken);
 }
 
 function escapeHtml(s) {
@@ -48,12 +39,12 @@ function renderFeed(posts) {
 }
 
 async function loadFeed() {
-    const result = await graphql('{ posts { id title body createdAt author { displayName } } }');
+    const result = await graphqlPost('{ posts { id title body createdAt author { displayName } } }');
     renderFeed(result.data && result.data.posts);
 }
 
 async function search(keyword) {
-    const result = await graphql(
+    const result = await graphqlPost(
         'query($k: String!) { searchPosts(keyword: $k) { id title body createdAt author { displayName } } }',
         { k: keyword }
     );
@@ -80,5 +71,8 @@ document.getElementById('logout-btn').addEventListener('click', async function (
     window.location.href = 'login.html';
 });
 
-loadCurrentUser();
-loadFeed();
+async function init() {
+    await loadCurrentUser();
+    loadFeed();
+}
+init();
