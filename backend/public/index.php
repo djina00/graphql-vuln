@@ -117,22 +117,10 @@ try {
 
         $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
 
-        // VULN: batching — a JSON array body runs many operations in one
-        // request, bypassing any per-request rate limit
+        // batching fix: one operation per request — array bodies are rejected
         if (is_array($in) && array_is_list($in)) {
-            $results = [];
-            foreach ($in as $op) {
-                $r = GraphQL::executeQuery(
-                    Schema::build(),
-                    (string)($op['query'] ?? ''),
-                    null,
-                    ['userId' => Auth::currentUserId()],
-                    is_array($op['variables'] ?? null) ? $op['variables'] : null,
-                    is_string($op['operationName'] ?? null) ? $op['operationName'] : null
-                );
-                $results[] = $r->toArray($debug);
-            }
-            echo json_encode($results);
+            http_response_code(400);
+            echo json_encode(['error' => 'Batched queries are not allowed.']);
             exit;
         }
 
