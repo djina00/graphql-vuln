@@ -8,7 +8,9 @@ use App\GraphQL\MaxAliasesRule;
 use App\GraphQL\Schema;
 use GraphQL\Error\DebugFlag;
 use GraphQL\GraphQL;
+use GraphQL\Error\Error;
 use GraphQL\Validator\DocumentValidator;
+use GraphQL\Validator\Rules\DisableIntrospection;
 use GraphQL\Validator\Rules\QueryComplexity;
 use GraphQL\Validator\Rules\QueryDepth;
 
@@ -19,6 +21,8 @@ DocumentValidator::addRule(new QueryDepth(7));
 DocumentValidator::addRule(new QueryComplexity(150));
 // alias-overload fix: cap how many aliases a single query may use
 DocumentValidator::addRule(new MaxAliasesRule(15));
+// info-leak fix: block __schema and __type so the schema can't be dumped
+DocumentValidator::addRule(new DisableIntrospection(DisableIntrospection::ENABLED));
 
 // CORS for the dev frontend running on a different port.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -118,8 +122,6 @@ try {
 
         $in = read_json_body();
 
-        $debug = DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE;
-
         // batching fix: one operation per request — array bodies are rejected
         if (is_array($in) && array_is_list($in)) {
             http_response_code(400);
@@ -131,7 +133,6 @@ try {
         $variables = $in['variables'] ?? null;
         $operationName = $in['operationName'] ?? null;
 
-        // VULN: info-leak — introspection enabled (no DisableIntrospection rule)
         $result = GraphQL::executeQuery(
             Schema::build(),
             $query,
@@ -141,8 +142,15 @@ try {
             is_string($operationName) ? $operationName : null
         );
 
-        // VULN: info-leak — debug flags leak stack traces and field suggestions
-        echo json_encode($result->toArray($debug));
+        // info-leak fix: only return the error message — drop locations, path,
+        // extensions, and any "Did you mean ..." hints the validator emits
+        $result->setErrorFormatter(function (Error $err): array {
+            $msg = preg_replace('/\s*Did you mean[^?]*\?/', '', $err->getMessage());
+            return ['message' => $msg];
+        });
+
+        // info-leak fix: no debug messages or stack traces in the response
+        echo json_encode($result->toArray(DebugFlag::NONE));
         exit;
     }
 
