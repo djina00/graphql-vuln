@@ -4,6 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Auth;
+use App\GraphQL\MaxAliasesRule;
 use App\GraphQL\Schema;
 use GraphQL\Error\DebugFlag;
 use GraphQL\GraphQL;
@@ -16,6 +17,8 @@ $config = require __DIR__ . '/../config.php';
 // depth/complexity fix: cap query nesting and total field work per request
 DocumentValidator::addRule(new QueryDepth(7));
 DocumentValidator::addRule(new QueryComplexity(150));
+// alias-overload fix: cap how many aliases a single query may use
+DocumentValidator::addRule(new MaxAliasesRule(15));
 
 // CORS for the dev frontend running on a different port.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -129,7 +132,6 @@ try {
         $operationName = $in['operationName'] ?? null;
 
         // VULN: info-leak — introspection enabled (no DisableIntrospection rule)
-        // VULN: alias-overload — no MaxAliases rule registered
         $result = GraphQL::executeQuery(
             Schema::build(),
             $query,
